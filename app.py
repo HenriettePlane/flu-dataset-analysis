@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import plotly.express as px
+import plotly.graph_objects as go
 
 # Page configuration
 st.set_page_config(
@@ -31,7 +33,7 @@ with st.sidebar:
     st.markdown("---")
     page = st.radio(
         "Navigation",
-        ["Overview", "Data Exploration", "Visualizations", "Data Table"]
+        ["Overview", "Data Exploration", "Visualizations", "Map", "Data Table"]
     )
     st.markdown("---")
     st.info(f"**Total Records:** {len(df):,}")
@@ -255,6 +257,161 @@ elif page == "Visualizations":
         
         st.write("**Cross-tabulation Table**")
         st.dataframe(crosstab, use_container_width=True)
+
+# Map page
+elif page == "Map":
+    st.title("🗺️ Genotype Distribution Map")
+    st.markdown("Visualize flu genotypes by geographic location")
+    st.markdown("---")
+    
+    # State coordinates (approximate centroids)
+    state_coords = {
+        'California': {'lat': 36.7783, 'lon': -119.4179},
+        'Arizona': {'lat': 34.0489, 'lon': -111.0937},
+        'New Mexico': {'lat': 34.5199, 'lon': -105.8701},
+        'Texas': {'lat': 31.9686, 'lon': -99.9018},
+        'Baja California': {'lat': 30.8406, 'lon': -115.2838},
+        'Sonora': {'lat': 29.2972, 'lon': -110.3309},
+        'Chihuahua': {'lat': 28.6353, 'lon': -106.0889}
+    }
+    
+    # Filter options
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        selected_genotype = st.selectbox(
+            "Select Genotype to Visualize",
+            options=['All'] + sorted([g for g in df['Genotype'].dropna().unique() if pd.notna(g)]),
+            index=0
+        )
+    
+    with col2:
+        map_type = st.selectbox(
+            "Map Type",
+            options=["Scatter Map (by State)", "Choropleth (by State)"],
+            index=0
+        )
+    
+    # Prepare data for map
+    map_df = df.copy()
+    
+    if selected_genotype != 'All':
+        map_df = map_df[map_df['Genotype'] == selected_genotype]
+    
+    # Aggregate by state
+    state_data = map_df.groupby('state').agg({
+        'Genotype': 'count',
+        'Accession': 'count'
+    }).reset_index()
+    state_data.columns = ['state', 'count', 'total']
+    
+    # Add coordinates
+    state_data['lat'] = state_data['state'].map(lambda x: state_coords.get(x, {}).get('lat', np.nan))
+    state_data['lon'] = state_data['state'].map(lambda x: state_coords.get(x, {}).get('lon', np.nan))
+    
+    # Remove states without coordinates
+    state_data = state_data.dropna(subset=['lat', 'lon'])
+    
+    st.markdown("---")
+    
+    if len(state_data) > 0:
+        if map_type == "Scatter Map (by State)":
+            # Create scatter map
+            fig = px.scatter_mapbox(
+                state_data,
+                lat='lat',
+                lon='lon',
+                size='count',
+                hover_name='state',
+                hover_data={'count': True, 'lat': False, 'lon': False},
+                color='count',
+                color_continuous_scale='Viridis',
+                size_max=50,
+                zoom=4,
+                height=600,
+                mapbox_style="open-street-map",
+                title=f"Genotype Distribution by State{' - ' + selected_genotype if selected_genotype != 'All' else ''}"
+            )
+            
+            fig.update_layout(
+                margin=dict(l=0, r=0, t=30, b=0),
+                mapbox=dict(
+                    center=dict(lat=32.0, lon=-110.0),
+                    zoom=4
+                )
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+        else:  # Choropleth
+            st.info("Choropleth maps require GeoJSON boundaries. Using scatter map instead.")
+            fig = px.scatter_mapbox(
+                state_data,
+                lat='lat',
+                lon='lon',
+                size='count',
+                hover_name='state',
+                hover_data={'count': True},
+                color='count',
+                color_continuous_scale='Viridis',
+                size_max=50,
+                zoom=4,
+                height=600,
+                mapbox_style="open-street-map"
+            )
+            
+            fig.update_layout(
+                margin=dict(l=0, r=0, t=30, b=0),
+                mapbox=dict(
+                    center=dict(lat=32.0, lon=-110.0),
+                    zoom=4
+                )
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Show detailed breakdown
+        st.markdown("---")
+        st.subheader("State Breakdown")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Records by State**")
+            st.dataframe(
+                state_data[['state', 'count']].sort_values('count', ascending=False),
+                use_container_width=True,
+                hide_index=True
+            )
+        
+        with col2:
+            # Genotype breakdown by state
+            if selected_genotype == 'All':
+                st.write("**Top Genotypes by State**")
+                genotype_by_state = map_df.groupby(['state', 'Genotype']).size().reset_index(name='count')
+                genotype_by_state = genotype_by_state.sort_values('count', ascending=False).head(20)
+                st.dataframe(genotype_by_state, use_container_width=True, hide_index=True)
+            else:
+                st.write(f"**Distribution of {selected_genotype}**")
+                st.metric("Total Records", f"{state_data['count'].sum():,}")
+                st.metric("States with this Genotype", len(state_data))
+        
+        # Additional statistics
+        st.markdown("---")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Total Records", f"{state_data['count'].sum():,}")
+        
+        with col2:
+            st.metric("States Represented", len(state_data))
+        
+        with col3:
+            avg_per_state = state_data['count'].mean()
+            st.metric("Avg Records per State", f"{avg_per_state:,.0f}")
+    
+    else:
+        st.warning("No data available for the selected filters.")
 
 # Data Table page
 elif page == "Data Table":
