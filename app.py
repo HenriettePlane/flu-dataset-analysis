@@ -248,7 +248,8 @@ elif page == "Visualizations":
     
     viz_type = st.selectbox(
         "Select Visualization",
-        ["Genotype Distribution", "State Comparison", "Temporal Trends", "Genotype by State"]
+        ["Genotype Distribution", "State Comparison", "Temporal Trends", "Genotype by State"],
+        index=3
     )
     
     st.markdown("---")
