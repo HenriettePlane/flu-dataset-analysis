@@ -371,6 +371,76 @@ elif page == "Map":
             
             st.plotly_chart(fig, use_container_width=True)
         
+        # Pie chart visualization for genotype breakdown by state
+        st.markdown("---")
+        st.subheader("🧬 Genotype Breakdown by State")
+        
+        # State selector for pie chart
+        available_states = sorted([s for s in df['state'].dropna().unique() if s in state_coords])
+        selected_state_pie = st.selectbox(
+            "Select State to View Genotype Breakdown",
+            options=['All States'] + available_states,
+            index=0
+        )
+        
+        # Prepare data for pie chart
+        pie_df = df.copy()
+        
+        # Apply genotype filter if selected
+        if selected_genotype != 'All':
+            pie_df = pie_df[pie_df['Genotype'] == selected_genotype]
+        
+        # Filter by selected state for pie chart
+        if selected_state_pie != 'All States':
+            pie_df = pie_df[pie_df['state'] == selected_state_pie]
+        
+        # Get genotype counts
+        genotype_counts = pie_df['Genotype'].value_counts().reset_index()
+        genotype_counts.columns = ['Genotype', 'Count']
+        genotype_counts = genotype_counts[genotype_counts['Genotype'].notna()]
+        
+        if len(genotype_counts) > 0:
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                # Create pie chart
+                fig_pie = px.pie(
+                    genotype_counts,
+                    values='Count',
+                    names='Genotype',
+                    title=f"Genotype Distribution{' - ' + selected_state_pie if selected_state_pie != 'All States' else ' - All States'}",
+                    color_discrete_sequence=px.colors.qualitative.Set3
+                )
+                fig_pie.update_traces(
+                    textposition='inside',
+                    textinfo='percent+label',
+                    hovertemplate='<b>%{label}</b><br>Count: %{value}<br>Percentage: %{percent}<extra></extra>'
+                )
+                fig_pie.update_layout(
+                    showlegend=True,
+                    height=500,
+                    margin=dict(l=20, r=20, t=50, b=20)
+                )
+                st.plotly_chart(fig_pie, use_container_width=True)
+            
+            with col2:
+                st.write("**Genotype Counts**")
+                st.dataframe(
+                    genotype_counts.sort_values('Count', ascending=False),
+                    use_container_width=True,
+                    hide_index=True
+                )
+                
+                # Summary metrics
+                st.markdown("---")
+                st.metric("Total Records", f"{genotype_counts['Count'].sum():,}")
+                st.metric("Unique Genotypes", len(genotype_counts))
+                if selected_state_pie != 'All States':
+                    top_genotype = genotype_counts.iloc[0]
+                    st.metric("Top Genotype", f"{top_genotype['Genotype']} ({top_genotype['Count']:,})")
+        else:
+            st.warning(f"No genotype data available for {selected_state_pie}.")
+        
         # Show detailed breakdown
         st.markdown("---")
         st.subheader("State Breakdown")
