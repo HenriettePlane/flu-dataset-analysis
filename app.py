@@ -272,7 +272,8 @@ elif page == "Map":
         'Texas': {'lat': 31.9686, 'lon': -99.9018},
         'Baja California': {'lat': 30.8406, 'lon': -115.2838},
         'Sonora': {'lat': 29.2972, 'lon': -110.3309},
-        'Chihuahua': {'lat': 28.6353, 'lon': -106.0889}
+        'Chihuahua': {'lat': 28.6353, 'lon': -106.0889},
+        'Nuevo Leon': {'lat': 25.6866, 'lon': -100.3161}
     }
     
     # Filter options
