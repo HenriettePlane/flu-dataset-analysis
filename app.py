@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 
 # Page configuration
 st.set_page_config(
-    page_title="Flu Dataset Analysis",
+    page_title="Disease Dataset Analysis",
     page_icon="🦠",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -24,19 +24,36 @@ def load_data():
     df['Year'] = df['Collection_Date'].dt.year
     return df
 
+@st.cache_data
+def load_dengue_data():
+    """Load the dengue dataset"""
+    df_dengue = pd.read_csv('border_data.csv', low_memory=False)
+    # Convert Collection_Date to datetime
+    df_dengue['Collection_Date'] = pd.to_datetime(df_dengue['Collection_Date'], errors='coerce')
+    # Extract year from collection date
+    df_dengue['Year'] = df_dengue['Collection_Date'].dt.year
+    # Extract state from Geo_Location
+    df_dengue['state'] = df_dengue['Geo_Location'].str.extract(r'(?:USA|Mexico):\s*([^,]+)')
+    return df_dengue
+
 # Load data
 df = load_data()
+df_dengue = load_dengue_data()
 
 # Sidebar
 with st.sidebar:
-    st.header("🦠 Flu Dataset Analysis")
+    st.header("🦠 Disease Dataset Analysis")
     st.markdown("---")
     page = st.radio(
         "Navigation",
-        ["Overview", "Data Exploration", "Visualizations", "Map", "Data Table"]
+        ["Overview", "Data Exploration", "Visualizations", "Map", "Data Table",
+         "Dengue Overview", "Dengue Analysis"]
     )
     st.markdown("---")
-    st.info(f"**Total Records:** {len(df):,}")
+    if page in ["Dengue Overview", "Dengue Analysis"]:
+        st.info(f"**Dengue Records:** {len(df_dengue):,}")
+    else:
+        st.info(f"**Flu Records:** {len(df):,}")
 
 # Overview page
 if page == "Overview":
@@ -581,6 +598,251 @@ elif page == "Data Table":
         mime="text/csv"
     )
 
+# Dengue Overview page
+elif page == "Dengue Overview":
+    st.title("🦟 Dengue Fever Dataset Analysis")
+    st.markdown("Analysis of dengue virus data from border states")
+    st.markdown("---")
+    
+    # Key metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        total_records = len(df_dengue)
+        st.metric("Total Records", f"{total_records:,}")
+    
+    with col2:
+        unique_genotypes = df_dengue['Genotype'].nunique()
+        st.metric("Dengue Types", unique_genotypes)
+    
+    with col3:
+        unique_countries = df_dengue['Country'].nunique()
+        st.metric("Countries", unique_countries)
+    
+    with col4:
+        if df_dengue['Year'].notna().any():
+            date_range = f"{int(df_dengue['Year'].min())} - {int(df_dengue['Year'].max())}"
+        else:
+            date_range = "N/A"
+        st.metric("Year Range", date_range)
+    
+    st.markdown("---")
+    
+    # Genotype breakdown
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🦠 Dengue Type Distribution")
+        genotype_counts = df_dengue['Genotype'].value_counts()
+        genotype_counts = genotype_counts[genotype_counts.index.notna()]
+        if len(genotype_counts) > 0:
+            pie_df = pd.DataFrame({
+                'Genotype': [f"Type {int(g)}" if pd.notna(g) else "Unknown" for g in genotype_counts.index],
+                'Count': genotype_counts.values
+            })
+            fig_pie = px.pie(
+                pie_df,
+                values='Count',
+                names='Genotype',
+                title="Distribution of Dengue Types",
+                color_discrete_sequence=px.colors.qualitative.Set2
+            )
+            fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+            st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.info("No genotype data available")
+    
+    with col2:
+        st.subheader("🌎 Records by Country")
+        country_counts = df_dengue['Country'].value_counts()
+        st.bar_chart(country_counts)
+        
+        st.markdown("---")
+        st.write("**Top Locations**")
+        location_counts = df_dengue['Geo_Location'].value_counts().head(10)
+        st.dataframe(location_counts.reset_index().rename(columns={'index': 'Location', 'Geo_Location': 'Count'}), 
+                    use_container_width=True, hide_index=True)
+    
+    st.markdown("---")
+    
+    # Yearly trends
+    if df_dengue['Year'].notna().any():
+        st.subheader("📈 Yearly Trends")
+        yearly_counts = df_dengue.groupby('Year').size().reset_index(name='Count')
+        yearly_counts = yearly_counts[yearly_counts['Year'].notna()]
+        if len(yearly_counts) > 0:
+            st.line_chart(yearly_counts.set_index('Year'))
+    
+    # Summary statistics
+    st.markdown("---")
+    st.subheader("📋 Dataset Summary")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("**Dengue Types in Dataset:**")
+        genotypes_list = df_dengue['Genotype'].value_counts()
+        for genotype, count in genotypes_list.items():
+            if pd.notna(genotype):
+                st.write(f"- Type {int(genotype)}: {count:,} records")
+    
+    with col2:
+        st.write("**Countries in Dataset:**")
+        countries_list = df_dengue['Country'].value_counts()
+        for country, count in countries_list.items():
+            if pd.notna(country):
+                st.write(f"- {country}: {count:,} records")
+
+# Dengue Analysis page
+elif page == "Dengue Analysis":
+    st.title("🔬 Dengue Fever Detailed Analysis")
+    st.markdown("Comprehensive analysis and exploration of dengue virus data")
+    st.markdown("---")
+    
+    # Filters
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        countries_filter = st.multiselect(
+            "Select Countries",
+            options=sorted(df_dengue['Country'].dropna().unique()),
+            default=None
+        )
+    
+    with col2:
+        genotypes_filter = st.multiselect(
+            "Select Dengue Types",
+            options=sorted([g for g in df_dengue['Genotype'].dropna().unique() if pd.notna(g)]),
+            default=None
+        )
+    
+    with col3:
+        if df_dengue['Year'].notna().any():
+            year_range = st.slider(
+                "Year Range",
+                min_value=int(df_dengue['Year'].min()),
+                max_value=int(df_dengue['Year'].max()),
+                value=(int(df_dengue['Year'].min()), int(df_dengue['Year'].max()))
+            )
+        else:
+            year_range = (2000, 2025)
+            st.info("Year data not available for all records")
+    
+    # Apply filters
+    filtered_dengue = df_dengue.copy()
+    
+    if countries_filter:
+        filtered_dengue = filtered_dengue[filtered_dengue['Country'].isin(countries_filter)]
+    
+    if genotypes_filter:
+        filtered_dengue = filtered_dengue[filtered_dengue['Genotype'].isin(genotypes_filter)]
+    
+    if df_dengue['Year'].notna().any():
+        filtered_dengue = filtered_dengue[
+            (filtered_dengue['Year'] >= year_range[0]) & 
+            (filtered_dengue['Year'] <= year_range[1])
+        ]
+    
+    # Display filtered results
+    st.markdown("---")
+    st.subheader(f"Filtered Results: {len(filtered_dengue):,} records")
+    
+    if len(filtered_dengue) > 0:
+        # Summary metrics
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Filtered Records", f"{len(filtered_dengue):,}")
+        
+        with col2:
+            countries_in_filter = filtered_dengue['Country'].nunique()
+            st.metric("Countries", countries_in_filter)
+        
+        with col3:
+            genotypes_in_filter = filtered_dengue['Genotype'].nunique()
+            st.metric("Dengue Types", genotypes_in_filter)
+        
+        # Visualizations
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Records by Country**")
+            country_filtered_counts = filtered_dengue['Country'].value_counts()
+            st.bar_chart(country_filtered_counts)
+        
+        with col2:
+            st.write("**Records by Dengue Type**")
+            genotype_filtered_counts = filtered_dengue['Genotype'].value_counts()
+            genotype_filtered_counts = genotype_filtered_counts[genotype_filtered_counts.index.notna()]
+            if len(genotype_filtered_counts) > 0:
+                st.bar_chart(genotype_filtered_counts)
+        
+        # Yearly trend by genotype
+        if filtered_dengue['Year'].notna().any() and filtered_dengue['Genotype'].notna().any():
+            st.markdown("---")
+            st.subheader("📈 Yearly Trend by Dengue Type")
+            
+            genotype_trends = filtered_dengue.groupby(['Year', 'Genotype']).size().reset_index(name='Count')
+            genotype_trends = genotype_trends[genotype_trends['Year'].notna()]
+            genotype_trends = genotype_trends[genotype_trends['Genotype'].notna()]
+            
+            if len(genotype_trends) > 0:
+                pivot_trends = genotype_trends.pivot(index='Year', columns='Genotype', values='Count').fillna(0)
+                
+                fig_dengue_trends = px.line(
+                    pivot_trends.reset_index(),
+                    x='Year',
+                    y=[col for col in pivot_trends.columns],
+                    title='Yearly Trend by Dengue Type',
+                    labels={'value': 'Number of Records', 'Year': 'Year'},
+                    color_discrete_sequence=px.colors.qualitative.Set2
+                )
+                
+                fig_dengue_trends.update_layout(
+                    height=500,
+                    hovermode='x unified',
+                    legend=dict(
+                        orientation="v",
+                        yanchor="top",
+                        y=1,
+                        x=1.02
+                    ),
+                    xaxis_title="Year",
+                    yaxis_title="Number of Records"
+                )
+                
+                st.plotly_chart(fig_dengue_trends, use_container_width=True)
+        
+        # Location breakdown
+        st.markdown("---")
+        st.subheader("📍 Geographic Distribution")
+        
+        location_counts = filtered_dengue['Geo_Location'].value_counts().head(15)
+        st.bar_chart(location_counts)
+        
+        # Data table
+        st.markdown("---")
+        st.subheader("📋 Detailed Data")
+        
+        display_cols = ['Accession', 'Genotype', 'Country', 'Geo_Location', 'Collection_Date', 'Year', 'Nuc_Completeness']
+        available_display_cols = [col for col in display_cols if col in filtered_dengue.columns]
+        
+        st.dataframe(
+            filtered_dengue[available_display_cols].sort_values('Collection_Date', ascending=False, na_position='last'),
+            use_container_width=True,
+            height=400
+        )
+        
+        # Download button
+        csv_dengue = filtered_dengue.to_csv(index=False)
+        st.download_button(
+            label="Download filtered dengue data as CSV",
+            data=csv_dengue,
+            file_name=f"dengue_data_filtered_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv"
+        )
+    else:
+        st.warning("No records match the selected filters.")
+
 # Footer
 st.markdown("---")
-st.markdown("Made with ❤️ using Streamlit | Flu Border States Dataset Analysis")
+st.markdown("Made with ❤️ using Streamlit | Disease Dataset Analysis (Flu & Dengue)")
