@@ -188,6 +188,55 @@ elif page == "Data Exploration":
         yearly_filtered = yearly_filtered[yearly_filtered['Year'].notna()]
         if len(yearly_filtered) > 0:
             st.line_chart(yearly_filtered.set_index('Year'))
+        
+        # Yearly trend by genotype
+        st.markdown("---")
+        st.subheader("📈 Yearly Trend by Genotype")
+        st.write("Track the evolution of each genotype over time")
+        
+        # Prepare data for genotype trends
+        genotype_trends = filtered_df.groupby(['Year', 'Genotype']).size().reset_index(name='Count')
+        genotype_trends = genotype_trends[genotype_trends['Year'].notna()]
+        genotype_trends = genotype_trends[genotype_trends['Genotype'].notna()]
+        
+        if len(genotype_trends) > 0:
+            # Create pivot table for line chart
+            pivot_trends = genotype_trends.pivot(index='Year', columns='Genotype', values='Count').fillna(0)
+            
+            # Create interactive line chart with Plotly
+            fig_genotype_trends = px.line(
+                pivot_trends.reset_index(),
+                x='Year',
+                y=[col for col in pivot_trends.columns],
+                title='Yearly Trend by Genotype',
+                labels={'value': 'Number of Records', 'Year': 'Year'},
+                color_discrete_sequence=px.colors.qualitative.Set3
+            )
+            
+            fig_genotype_trends.update_layout(
+                height=500,
+                hovermode='x unified',
+                legend=dict(
+                    orientation="v",
+                    yanchor="top",
+                    y=1,
+                    x=1.02
+                ),
+                xaxis_title="Year",
+                yaxis_title="Number of Records"
+            )
+            
+            st.plotly_chart(fig_genotype_trends, use_container_width=True)
+            
+            # Show data table
+            with st.expander("View Data Table"):
+                st.dataframe(
+                    genotype_trends.sort_values(['Year', 'Count'], ascending=[True, False]),
+                    use_container_width=True,
+                    hide_index=True
+                )
+        else:
+            st.info("No genotype trend data available for the selected filters.")
     else:
         st.warning("No records match the selected filters.")
 
