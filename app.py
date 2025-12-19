@@ -51,7 +51,7 @@ with st.sidebar:
     st.markdown("---")
     page = st.radio(
         "Navigation",
-        ["Overview", "Data Exploration", "Visualizations", "Map", "Data Table",
+        ["Flu Overview", "Flu Data Exploration", "Flu Visualizations", "Flu Map", "Flu Data Table",
          "Dengue Overview", "Dengue Analysis", "Dengue Map"]
     )
     st.markdown("---")
@@ -60,11 +60,13 @@ with st.sidebar:
             st.info(f"**Dengue Records:** {len(df_dengue):,}")
         else:
             st.warning("Dengue data not available")
+    elif page in ["Flu Overview", "Flu Data Exploration", "Flu Visualizations", "Flu Map", "Flu Data Table"]:
+        st.info(f"**Flu Records:** {len(df):,}")
     else:
         st.info(f"**Flu Records:** {len(df):,}")
 
 # Overview page
-if page == "Overview":
+if page == "Flu Overview":
     st.title("🦠 Flu Border States Dataset Analysis")
     st.markdown("Analysis of influenza data from border states over the last 20 years")
     st.markdown("---")
@@ -131,7 +133,7 @@ if page == "Overview":
                 st.write(f"- {genotype}: {count:,} records")
 
 # Data Exploration page
-elif page == "Data Exploration":
+elif page == "Flu Data Exploration":
     st.title("🔍 Data Exploration")
     st.markdown("Filter and explore the flu dataset")
     st.markdown("---")
@@ -266,7 +268,7 @@ elif page == "Data Exploration":
         st.warning("No records match the selected filters.")
 
 # Visualizations page
-elif page == "Visualizations":
+elif page == "Flu Visualizations":
     st.title("📊 Visualizations")
     st.markdown("Interactive charts and graphs")
     st.markdown("---")
@@ -334,7 +336,7 @@ elif page == "Visualizations":
         st.dataframe(crosstab, use_container_width=True)
 
 # Map page
-elif page == "Map":
+elif page == "Flu Map":
     st.title("🗺️ Genotype Distribution Map")
     st.markdown("Visualize flu genotypes by geographic location")
     st.markdown("---")
@@ -560,7 +562,7 @@ elif page == "Map":
         st.warning("No data available for the selected filters.")
 
 # Data Table page
-elif page == "Data Table":
+elif page == "Flu Data Table":
     st.title("📋 Data Table")
     st.markdown("Browse and search the dataset")
     st.markdown("---")
